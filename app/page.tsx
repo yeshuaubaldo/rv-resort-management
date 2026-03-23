@@ -30,13 +30,22 @@ export default function Home() {
   const [confirmedDates, setConfirmedDates] = useState<string[]>([]);
   const [totalPrice, setTotalPrice] = useState(7000);
 
+  // FETCH OCCUPIED DATES (Step 1 Fix)
+  // Kinukuha nito ang lahat ng dates na "Confirmed" na para hindi na ma-book uli.
   useEffect(() => {
     const fetchOccupiedDates = async () => {
-      const { data } = await supabase.from('bookings').select('reservation_date').eq('status', 'Confirmed');
-      if (data) setConfirmedDates(data.map(b => b.reservation_date));
+      const { data } = await supabase
+        .from('bookings')
+        .select('reservation_date')
+        .eq('status', 'Confirmed');
+      
+      if (data) {
+        const dates = data.map(b => b.reservation_date);
+        setConfirmedDates(dates);
+      }
     };
     fetchOccupiedDates();
-  }, []);
+  }, [isModalOpen]); // Nag-f-fetch uli tuwing binubuksan ang modal para laging updated
 
   useEffect(() => {
     let base = shift === 'Day Time' ? 7000 : shift === 'Night Time' ? 8000 : 13000;
@@ -45,11 +54,22 @@ export default function Home() {
 
   const handleBooking = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (confirmedDates.includes(resDate)) {
-      alert("Taken na po ang date na ito.");
+    
+    setLoading(true);
+
+    // DOUBLE BOOKING PROTECTION (Step 1 Core Logic)
+    // Double check sa database bago mag-submit para kahit dalawang tao sabay nag-book, isa lang ang papasok.
+    const { data: existing } = await supabase
+      .from('bookings')
+      .select('id')
+      .eq('reservation_date', resDate)
+      .eq('status', 'Confirmed');
+
+    if (existing && existing.length > 0) {
+      alert("Oops! May nauna na pong mag-book sa date na ito habang nag-f-fill up kayo. Pakipili ng ibang date.");
+      setLoading(false);
       return;
     }
-    setLoading(true);
 
     const newRef = "RV-" + Math.random().toString(36).substring(2, 7).toUpperCase();
 
@@ -66,7 +86,7 @@ export default function Home() {
 
     if (!error) {
       setBookingRef(newRef);
-      setGuestName(''); setResDate('');
+      setGuestName(''); setResDate(''); setContactNumber('');
     } else {
       alert("Error: " + error.message);
     }
@@ -96,7 +116,7 @@ export default function Home() {
     setLoading(true);
     setRecoveryMessage(null);
 
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('bookings')
       .select('reference_id, guest_name')
       .eq('contact_number', recoveryPhone)
@@ -136,6 +156,9 @@ export default function Home() {
     { src: '/entertainment.jpg', alt: 'Entertainment', className: 'h-32 md:h-[192px]' },
   ];
 
+  // Helper function para sa button state
+  const isDateTaken = confirmedDates.includes(resDate);
+
   return (
     <main className="min-h-screen bg-slate-50 font-sans">
       {/* Navigation */}
@@ -173,7 +196,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Main Content Sections (Amenities, Gallery, Rates, Location) */}
+      {/* Main Content Sections */}
       <section className="max-w-6xl mx-auto px-6 pb-20 space-y-24">
         {/* Amenities */}
         <div id="amenities">
@@ -228,7 +251,7 @@ export default function Home() {
           <h3 className="text-3xl font-black uppercase italic tracking-tighter mb-6">Our <span className="text-blue-600">Location</span></h3>
           <p className="text-slate-500 font-bold text-sm mb-10 italic">📍 #0411 BES, Sto. Rosario St. Bagong Barrio, Pandi, Bulacan</p>
           <div className="w-full h-[450px] rounded-[2.5rem] overflow-hidden border-8 border-slate-50 grayscale hover:grayscale-0 transition-all duration-1000">
-             <iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3856.5501!2d120.9!3d14.8!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zMTTCsDQ4JzAwLjAiTiAxMjDCsDU0JzAwLjAiRQ!5e0!3m2!1sen!2sph!4v1620000000000" className="w-full h-full border-0" loading="lazy"></iframe>
+             <iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3856.7032734125714!2d120.9419131!3d14.8419131!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zMTTCsDUwJzMxLjAiTiAxMjDCsDU2JzMxLjAiRQ!5e0!3m2!1sen!2sph!4v1711100000000!5m2!1sen!2sph" className="w-full h-full border-0" loading="lazy"></iframe>
           </div>
         </div>
       </section>
@@ -284,7 +307,7 @@ export default function Home() {
                       </div>
                     </div>
                     <div className="p-4 bg-slate-50 rounded-2xl"><label className="block text-[8px] font-black text-blue-600 uppercase mb-1">Date</label>
-                      <input required type="date" value={resDate} onChange={(e) => setResDate(e.target.value)} className="bg-transparent w-full outline-none font-bold text-sm" />
+                      <input required type="date" value={resDate} onChange={(e) => setResDate(e.target.value)} className={`bg-transparent w-full outline-none font-bold text-sm ${isDateTaken ? 'text-red-500' : ''}`} />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="p-4 bg-slate-50 rounded-2xl"><label className="block text-[8px] font-black text-blue-600 uppercase mb-1">Shift</label>
@@ -301,7 +324,19 @@ export default function Home() {
                     <div className="bg-blue-600 p-6 rounded-3xl text-white mt-4 shadow-lg shadow-blue-100">
                       <div className="flex justify-between items-center mb-1"><p className="text-[10px] font-bold uppercase opacity-80">Total Price</p><p className="text-2xl font-black italic">₱{totalPrice.toLocaleString()}</p></div>
                     </div>
-                    <button type="submit" disabled={loading} className="w-full bg-slate-900 text-white py-5 rounded-3xl font-black text-xs uppercase tracking-widest mt-2 hover:bg-blue-700 transition-colors shadow-xl shadow-slate-200">{loading ? 'Sending...' : 'Reserve Now'}</button>
+                    
+                    {/* BUTTON WITH VALIDATION FEEDBACK */}
+                    <button 
+                      type="submit" 
+                      disabled={loading || isDateTaken} 
+                      className={`w-full py-5 rounded-3xl font-black text-xs uppercase tracking-widest mt-2 transition-all shadow-xl ${
+                        isDateTaken 
+                        ? 'bg-red-100 text-red-500 cursor-not-allowed shadow-none' 
+                        : 'bg-slate-900 text-white hover:bg-blue-700 shadow-slate-200'
+                      }`}
+                    >
+                      {loading ? 'Sending...' : isDateTaken ? '📅 Fully Booked' : 'Reserve Now'}
+                    </button>
                   </form>
                 ) : (
                   /* --- TRACKING & RECOVERY VIEW --- */
