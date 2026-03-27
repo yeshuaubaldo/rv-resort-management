@@ -1,2 +1,39 @@
 @import "tailwindcss";
 
+/* 1. Eto ang hitsura ng galaw (Mula sa baba, paangat) */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 2. Isahang apply sa lahat ng SECTIONS (Hero, Amenities, Pricing, etc.) */
+section {
+  /* Animation settings */
+  animation-name: fadeInUp;
+  animation-duration: 3s;
+  animation-timing-function: ease-out;
+  animation-fill-mode: both;
+
+  /* Eto ang magic: Lalabas lang ang animation pag na-scroll mo na */
+  view-timeline-name: --section;
+  view-timeline-axis: block;
+  animation-timeline: --section;
+  animation-range: entry 10% cover 30%;
+}
+
+/* 3. Animation para sa lahat ng CARDS (Amenities/Pricing) */
+/* Basta may class na 'group' ang card mo, tatalbog ito pag hinover */
+.group {
+  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.group:hover {
+  transform: translateY(-12px) scale(1.03);
+  box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+}
