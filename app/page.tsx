@@ -23,6 +23,11 @@ export default function Home() {
   const [bookingRef, setBookingRef] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
+  // --- PAYMENT STATES ---
+  const [paymentRef, setPaymentRef] = useState('');
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+
   // --- RECOVERY STATES ---
   const [showPhoneInput, setShowPhoneInput] = useState(false);
   const [recoveryPhone, setRecoveryPhone] = useState('');
@@ -32,17 +37,8 @@ export default function Home() {
   const [confirmedDates, setConfirmedDates] = useState<string[]>([]);
   const [totalPrice, setTotalPrice] = useState(7000);
 
-  // --- AMENITIES DATA (WITH IMAGE LINKING) ---
-  const amenities = [
-    { title: 'Main Pool', desc: 'Adult (6ft) & Kiddie (2ft)', icon: '', img: '/pool-main.jpg' },
-    { title: 'Cottages', desc: '2 Open-air huts', icon: '', img: '/cottage.jpg' },
-    { title: 'Pavilion', desc: 'Indoor event space', icon: '', img: '/paV.jpg' },
-    { title: 'AC Rooms', desc: '3 Bedroom setup', icon: '', img: '/bedr.jpg' },
-    { title: 'High-speed WiFi', desc: 'Always connected', icon: '', img: '/wife.jpg' },
-    { title: 'Full Videoke', desc: 'Unlimited songs', icon: '', img: '/videoke.jpg' },
-    { title: 'Basketball', desc: 'Outdoor court', icon: '', img: '/bball.jpg' },
-    { title: 'Night View', desc: 'Ambient lighting', icon: '', img: '/night.jpg' }
-  ];
+  // --- CUSTOM MODAL STATE ---
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   useEffect(() => {
     const fetchOccupiedDates = async () => {
@@ -62,6 +58,8 @@ export default function Home() {
     let base = shift === 'Day Time' ? 7000 : shift === 'Night Time' ? 8000 : 13000;
     setTotalPrice(base + (extraRooms * 1000));
   }, [shift, extraRooms]);
+
+  // --- HANDLERS ---
 
   const handleBooking = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -95,11 +93,49 @@ export default function Home() {
 
     if (!error) {
       setBookingRef(newRef);
-      setGuestName(''); setResDate(''); setContactNumber('');
     } else {
       alert("Error: " + error.message);
     }
     setLoading(false);
+  };
+
+  const handlePaymentSubmit = async (refId: string) => {
+    if (!receiptFile) return alert("Please upload a screenshot of your receipt.");
+    if (paymentRef.length !== 4) return alert("Please enter the last 4 digits of the Reference Number.");
+
+    setIsUploading(true);
+    try {
+      const fileExt = receiptFile.name.split('.').pop();
+      const fileName = `${refId}-${Date.now()}.${fileExt}`;
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('receipts')
+        .upload(fileName, receiptFile);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('receipts')
+        .getPublicUrl(fileName);
+
+      const { error: updateError } = await supabase
+        .from('bookings')
+        .update({
+          payment_ref: paymentRef,
+          payment_image_url: publicUrl,
+          status: 'Pending' 
+        })
+        .eq('reference_id', refId);
+
+      if (updateError) throw updateError;
+
+      // TRIGGER CUSTOM MODAL INSTEAD OF ALERT
+      setShowSuccessModal(true);
+      
+    } catch (err: any) {
+      alert("Error: " + err.message);
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const handleTrack = async () => {
@@ -140,12 +176,6 @@ export default function Home() {
     setLoading(false);
   };
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
   const closeModal = () => {
     setIsModalOpen(false);
     setBookingRef(null);
@@ -154,20 +184,16 @@ export default function Home() {
     setRecoveryMessage(null);
     setRecoveryPhone('');
     setResDate('');
+    setGuestName('');
+    setContactNumber('');
+    setPaymentRef('');
+    setReceiptFile(null);
   };
-
-  const galleryImages = [
-    { src: '/pool-main.jpg', alt: 'Main Pool', className: 'col-span-2 row-span-2 h-64 md:h-[400px]' },
-    { src: '/kitchen-area.jpg', alt: 'Kitchen', className: 'h-32 md:h-[192px]' },
-    { src: '/live.jpg', alt: 'Living Room', className: 'h-32 md:h-[192px]' },
-    { src: '/night-view.jpg', alt: 'Night View', className: 'h-32 md:h-[192px]' },
-    { src: '/entertainment.jpg', alt: 'Entertainment', className: 'h-32 md:h-[192px]' },
-  ];
 
   return (
     <main className="min-h-screen font-sans text-slate-900">
       {/* Navigation */}
-      <nav className="fixed top-0 w-full bg-white600/50 backdrop-blur-xl z-50 border-b border-slate-100 shadow-sm">
+      <nav className="fixed top-0 w-full bg-white/60 backdrop-blur-xl z-50 border-b border-slate-100 shadow-sm">
         <div className="max-w-6xl mx-auto px-6 py-4 flex justify-between items-center">
           <div className="flex items-center gap-3">
             <div className="w-11 h-11 rounded-full overflow-hidden border-2 border-slate-100">
@@ -208,133 +234,40 @@ export default function Home() {
         </div>
       </section>
 
-    
-{/* Amenities Section - Dark Blue Premium Look */}
-<section id="amenities" className="bg-slate-950 py-24 px-6 rounded-[4rem] mx-4 md:mx-10 my-10 relative overflow-hidden">
-  {/* Abstract Background Glow */}
-  <div className="absolute top-0 left-1/4 w-96 h-96 bg-blue-600/10 blur-[120px] rounded-full"></div>
-  
-  <div className="max-w-6xl mx-auto relative z-10">
-    <div className="flex flex-col md:flex-row justify-between items-end mb-16 gap-6">
-      <div className="max-w-xl">
-        <h3 className="text-[10px] font-black uppercase tracking-[0.5em] text-blue-400 mb-4 italic">The Experience</h3>
-        <h2 className="text-5xl font-black uppercase italic leading-none tracking-tighter text-white">Designed for <br/>Your Comfort.</h2>
-      </div>
-      <p className="text-slate-500 font-bold text-xs uppercase tracking-widest italic">Exclusivity in every corner</p>
-    </div>
-    
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-      {[
-        { title: 'Main Pool', desc: 'Adult & Kiddie', img: '/pool-main.jpg' },
-        { title: 'Cottages', desc: '2 Open-air huts', img: '/cott.jpg' },
-        { title: 'Pavilion', desc: 'Indoor space', img: '/paV.jpg' },
-        { title: 'AC Rooms', desc: '3 Bedroom setup', img: '/bedr.jpg' },
-        { title: 'High-speed WiFi', desc: 'Always connected', img: '/wife.jpg' },
-        { title: 'Full Videoke', desc: 'Unlimited songs', img: '/videoke.jpg' },
-        { title: 'Basketball', desc: 'Outdoor court', img: '/bball.jpg' },
-        { title: 'Night View', desc: 'Ambient lighting', img: '/night.jpg' }
-      ].map((item) => (
-        <div 
-          key={item.title} 
-          onClick={() => setSelectedImg(item.img)}
-          className="group relative h-64 rounded-[3rem] overflow-hidden cursor-pointer border border-white/5 hover:border-blue-500/50 transition-all duration-500 shadow-2xl"
-        >
-          {/* Background Image with Dark Overlay */}
-          <img 
-            src={item.img} 
-            alt={item.title} 
-            className="absolute inset-0 w-full h-full object-cover opacity-40 group-hover:opacity-60 group-hover:scale-110 transition-all duration-700"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/60 to-transparent"></div>
-          
-          {/* Text Content */}
-          <div className="absolute bottom-8 left-8 right-8">
-            <h4 className="font-black uppercase text-[12px] tracking-widest text-white mb-1 group-hover:text-blue-400 transition-colors">
-              {item.title}
-            </h4>
-            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter group-hover:text-slate-200 transition-colors">
-              {item.desc}
-            </p>
-          </div>
-
-          {/* Small "View" indicator that appears on hover */}
-          <div className="absolute top-6 right-6 opacity-0 group-hover:opacity-100 transition-opacity">
-            <span className="bg-blue-600 text-[8px] font-black text-white px-3 py-1 rounded-full uppercase tracking-widest">
-              View
-            </span>
-          </div>
-        </div>
-      ))}
-    </div>
-  </div>
-</section>
-
-
-      {/* Pricing Table */}
-      <section id="rates" className="max-w-6xl mx-auto px-6 py-20">
-        <div className="bg-slate-950 rounded-[4rem] p-12 md:p-20 text-white relative overflow-hidden shadow-2xl shadow-blue-100">
-           <div className="absolute top-0 right-0 w-96 h-96 bg-blue-600/10 blur-[120px] rounded-full"></div>
-           <div className="relative z-10 text-center mb-16">
-             <h3 className="text-blue-400 font-black uppercase text-[10px] tracking-[0.5em] mb-4 italic">Exclusive Rates</h3>
-             <h2 className="text-5xl md:text-6xl font-black italic uppercase leading-none">Choose Your Schedule.</h2>
-           </div>
-           <div className="grid md:grid-cols-3 gap-8 relative z-10">
-              {[
-                { title: 'Sun-Kissed Day', price: '7,000', time: '8:00 AM - 5:00 PM', color: 'blue' },
-                { title: 'Starry Night', price: '8,000', time: '7:00 PM - 5:00 AM', color: 'blue' },
-                { title: 'Full 22-Hour Stay', price: '13,000', time: 'Ultimate Relaxation', color: 'yellow' }
-              ].map((rate, i) => (
-                <div key={i} className={`p-10 rounded-[3rem] border ${rate.color === 'yellow' ? 'border-yellow-500/20 bg-yellow-500/5' : 'border-white/5 bg-white/5'} hover:bg-white/10 transition-colors`}>
-                  <p className={`font-black text-xs uppercase tracking-widest ${rate.color === 'yellow' ? 'text-yellow-500' : 'text-blue-400'} mb-6`}>{rate.title}</p>
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-xl font-bold">₱</span>
-                    <span className="text-6xl font-black tracking-tighter">{rate.price}</span>
-                  </div>
-                  <p className="text-[10px] font-bold text-slate-500 uppercase mt-4 tracking-widest italic">{rate.time}</p>
-                </div>
-              ))}
-           </div>
-        </div>
-      </section>
-
-      {/* Location Section */}
-      <section id="location" className="max-w-6xl mx-auto px-6 py-20 mb-20">
-        <div className="flex flex-col md:flex-row gap-16 items-center">
-          <div className="flex-1">
-            <h3 className="text-blue-600 font-black uppercase text-[10px] tracking-[0.5em] mb-4 italic">Visit Us</h3>
-            <h2 className="text-5xl font-black uppercase italic leading-none mb-8">Pandi's Hidden <br/>Water Gem.</h2>
-            <div className="space-y-6">
-              <div className="flex gap-4 items-start">
-                <span className="text-xl">📍</span>
-                <p className="text-slate-500 font-bold text-sm uppercase tracking-tight italic">#0411 BES, Sto. Rosario St. <br/>Bagong Barrio, Pandi, Bulacan</p>
-              </div>
-              <a href="https://maps.google.com" target="_blank" rel="noopener noreferrer" className="inline-block text-blue-600 font-black text-[10px] uppercase tracking-widest border-b-2 border-blue-600 pb-1">Get Directions</a>
+      {/* Amenities Section */}
+      <section id="amenities" className="bg-slate-950 py-24 px-6 rounded-[4rem] mx-4 md:mx-10 my-10 relative overflow-hidden">
+        <div className="absolute top-0 left-1/4 w-96 h-96 bg-blue-600/10 blur-[120px] rounded-full"></div>
+        <div className="max-w-6xl mx-auto relative z-10">
+          <div className="flex flex-col md:flex-row justify-between items-end mb-16 gap-6">
+            <div className="max-w-xl">
+              <h3 className="text-[10px] font-black uppercase tracking-[0.5em] text-blue-400 mb-4 italic">The Experience</h3>
+              <h2 className="text-5xl font-black uppercase italic leading-none tracking-tighter text-white">Designed for <br/>Your Comfort.</h2>
             </div>
+            <p className="text-slate-500 font-bold text-xs uppercase tracking-widest italic">Exclusivity in every corner</p>
           </div>
-          <div className="flex-[1.5] w-full h-[500px] rounded-[4rem] overflow-hidden border-[12px] border-slate-50 shadow-2xl">
-             <iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d15426.69747209736!2d120.9472314!3d14.8435349!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3397acef87777777%3A0x66c88688688!2sR%26V%20Private%20Pool!5e0!3m2!1sen!2sph!4v1710000000000!5m2!1sen!2sph" className="w-full h-full border-0 grayscale" loading="lazy"></iframe>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            {[
+              { title: 'Main Pool', desc: 'Adult & Kiddie', img: '/pool-main.jpg' },
+              { title: 'Cottages', desc: '2 Open-air huts', img: '/cott.jpg' },
+              { title: 'Pavilion', desc: 'Indoor space', img: '/paV.jpg' },
+              { title: 'AC Rooms', desc: '3 Bedroom setup', img: '/bedr.jpg' },
+              { title: 'High-speed WiFi', desc: 'Always connected', img: '/wife.jpg' },
+              { title: 'Full Videoke', desc: 'Unlimited songs', img: '/videoke.jpg' },
+              { title: 'Basketball', desc: 'Outdoor court', img: '/bball.jpg' },
+              { title: 'Night View', desc: 'Ambient lighting', img: '/night.jpg' }
+            ].map((item) => (
+              <div key={item.title} onClick={() => setSelectedImg(item.img)} className="group relative h-64 rounded-[3rem] overflow-hidden cursor-pointer border border-white/5 hover:border-blue-500/50 transition-all duration-500 shadow-2xl">
+                <img src={item.img} alt={item.title} className="absolute inset-0 w-full h-full object-cover opacity-40 group-hover:opacity-60 group-hover:scale-110 transition-all duration-700" />
+                <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/60 to-transparent"></div>
+                <div className="absolute bottom-8 left-8 right-8">
+                  <h4 className="font-black uppercase text-[12px] tracking-widest text-white mb-1 group-hover:text-blue-400 transition-colors">{item.title}</h4>
+                  <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter group-hover:text-slate-200 transition-colors">{item.desc}</p>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </section>
-
-      {/* Footer */}
-      <footer className="bg-slate-950 text-white py-12 px-6">
-        <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-start gap-10">
-          <div className="flex flex-col items-center md:items-start space-y-4">
-            <div className="text-2xl font-black italic tracking-tighter uppercase">R&V Private Pool</div>
-            <a href="https://www.facebook.com/profile.php?id=61550826866114" target="_blank" className="hover:opacity-70 text-xl transition-all"> pesbok</a>
-            <p className="text-[10px] font-bold tracking-widest opacity-80 uppercase">R&V Private Pool & Event Place</p>
-          </div>
-          <div className="flex flex-col space-y-3 text-[11px] font-medium tracking-wide">
-            <div className="flex items-center gap-3"><span>📞</span><span>0938 611 2459</span></div>
-            <div className="flex items-center gap-3"><span>✉️</span><span>r.vprivatepoolandeventplace@gmail.com</span></div>
-            <div className="flex items-center gap-3"><span>📍</span><span>Bagong Barrio, Pandi, Bulacan</span></div>
-          </div>
-        </div>
-        <div className="max-w-6xl mx-auto border-t border-white/10 mt-10 pt-6 text-center">
-          <p className="text-[9px] font-black text-white/40 uppercase tracking-[0.5em]">Copyright © 2026 All Rights Reserved R&V Private Pool</p>
-        </div>
-      </footer>
 
       {/* Booking Modal */}
       {isModalOpen && (
@@ -344,15 +277,52 @@ export default function Home() {
             <button onClick={closeModal} className="absolute top-8 right-8 text-slate-300 hover:text-slate-900 text-3xl">×</button>
 
             {bookingRef ? (
-              <div className="text-center py-10">
-                <div className="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-8"><span className="text-4xl">✨</span></div>
-                <h4 className="text-3xl font-black uppercase italic text-slate-900 mb-3">Booking Requested!</h4>
-                <div className="bg-slate-50 p-8 rounded-[3rem] border-2 border-dashed border-slate-200 mb-10 cursor-pointer" onClick={() => copyToClipboard(bookingRef)}>
-                  <span className="text-[9px] font-black text-blue-600 uppercase tracking-[0.3em] mb-3 block">Reference ID</span>
-                  <span className="text-4xl font-black tracking-[0.2em] text-slate-900">{bookingRef}</span>
-                  <span className="text-[10px] font-black text-slate-300 uppercase mt-4 block">{copied ? '✓ Copied' : 'Tap to Copy'}</span>
+              <div className="space-y-6 animate-in fade-in zoom-in duration-300 text-center">
+                <div>
+                  <div className="w-16 h-16 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <span className="text-2xl">✅</span>
+                  </div>
+                  <h4 className="text-2xl font-black uppercase italic text-slate-900">Booking Saved!</h4>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Ref ID: {bookingRef}</p>
                 </div>
-                <button onClick={closeModal} className="w-full bg-slate-950 text-white py-6 rounded-[2rem] font-black uppercase text-[11px] tracking-widest">Back to Home</button>
+
+                <div className="bg-blue-600 p-6 rounded-[3rem] text-white shadow-xl">
+                  <p className="text-[9px] font-black uppercase tracking-[0.2em] mb-4 opacity-80">Scan to Pay via GCash</p>
+                  <img src="/gcash-qr.jpg" className="w-40 h-40 mx-auto rounded-2xl border-4 border-white/20 mb-4 object-cover" alt="GCash QR" />
+                  <p className="font-black text-lg leading-none uppercase">Rassid Serohijos</p>
+                  <p className="text-[10px] font-bold opacity-70">0938 611 2459</p>
+                </div>
+
+                <div className="space-y-4 text-left">
+                  <div className="p-5 bg-slate-50 rounded-[2rem] border border-slate-100">
+                    <label className="block text-[8px] font-black text-blue-600 uppercase mb-2">Last 4 Digits of GCash Ref #</label>
+                    <input 
+                      maxLength={4}
+                      value={paymentRef}
+                      onChange={(e) => setPaymentRef(e.target.value.replace(/\D/g, ""))}
+                      placeholder="XXXX"
+                      className="bg-transparent w-full outline-none font-black text-xl tracking-[0.5em]"
+                    />
+                  </div>
+
+                  <div className="p-5 bg-slate-50 rounded-[2rem] border border-slate-100">
+                    <label className="block text-[8px] font-black text-blue-600 uppercase mb-2">Upload Screenshot</label>
+                    <input 
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => setReceiptFile(e.target.files?.[0] || null)}
+                      className="text-[10px] font-bold uppercase w-full"
+                    />
+                  </div>
+
+                  <button 
+                    onClick={() => handlePaymentSubmit(bookingRef)}
+                    disabled={isUploading}
+                    className="w-full bg-slate-950 text-white py-6 rounded-[2rem] font-black uppercase text-[11px] tracking-widest hover:bg-blue-600 transition-all"
+                  >
+                    {isUploading ? 'Uploading...' : 'Confirm Payment'}
+                  </button>
+                </div>
               </div>
             ) : (
               <>
@@ -453,7 +423,32 @@ export default function Home() {
         </div>
       )}
 
-      {/* Fullscreen Lightbox (Image Viewer) */}
+      {/* --- CUSTOM SUCCESS POP-UP --- */}
+      {showSuccessModal && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-6 animate-in fade-in duration-300">
+          <div className="bg-white p-10 rounded-[3.5rem] shadow-2xl max-w-sm w-full text-center scale-in-center animate-in zoom-in duration-300">
+            <div className="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-6 text-4xl shadow-inner">
+              ✓
+            </div>
+            <h2 className="text-3xl font-black uppercase italic tracking-tighter text-slate-900 mb-3">Success!</h2>
+            <p className="text-slate-500 font-bold text-[11px] uppercase tracking-widest leading-relaxed mb-8">
+              Payment submitted! We will verify your booking shortly.
+            </p>
+            <button
+              onClick={() => {
+                setShowSuccessModal(false);
+                closeModal();
+                window.location.reload(); 
+              }}
+              className="w-full py-5 bg-blue-600 text-white rounded-[2rem] font-black uppercase text-[11px] tracking-[0.2em] hover:bg-slate-950 transition-all shadow-xl shadow-blue-100"
+            >
+              Close Window
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Fullscreen Lightbox */}
       {selectedImg && (
         <div className="fixed inset-0 bg-slate-950/98 z-[110] flex items-center justify-center p-6 animate-in fade-in duration-500" onClick={() => setSelectedImg(null)}>
           <img src={selectedImg} className="max-w-full max-h-[85vh] rounded-[3rem] shadow-2xl border-4 border-white/10" alt="Detailed view" />
