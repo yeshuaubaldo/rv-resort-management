@@ -21,7 +21,6 @@ export default function Home() {
   const [trackId, setTrackId] = useState('');
   const [trackResult, setTrackResult] = useState<any>(null);
   const [bookingRef, setBookingRef] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
 
   // --- PAYMENT STATES ---
   const [paymentRef, setPaymentRef] = useState('');
@@ -40,6 +39,22 @@ export default function Home() {
   // --- CUSTOM MODAL STATE ---
   const [showSuccessModal, setShowSuccessModal] = useState(false);
 
+  // --- QR CODE MAPPING LOGIC ---
+  // Dito natin idedefine kung anong image ang lalabas base sa totalPrice
+  const getQRImage = () => {
+    const qrMaps: { [key: number]: string } = {
+      7000: "/qr-7petot.jpg",
+      8000: "/qr-8petot.jpg",
+      9000: "/qr-9petot.jpg",
+      10000: "/qr-10petot.jpg",
+      13000: "/qr-13petot.jpg",
+      14000: "/qr-14petot.jpg",
+      15000: "/qr-15petot.jpg",
+    };
+    // Kung sakaling may amount na wala sa listahan, gagamit siya ng default
+    return qrMaps[totalPrice] || "/gcash-qr.jpg";
+  };
+
   useEffect(() => {
     const fetchOccupiedDates = async () => {
       const { data } = await supabase
@@ -55,6 +70,7 @@ export default function Home() {
   }, [isModalOpen]);
 
   useEffect(() => {
+    // Base pricing as per your rules
     let base = shift === 'Day Time' ? 7000 : shift === 'Night Time' ? 8000 : 13000;
     setTotalPrice(base + (extraRooms * 1000));
   }, [shift, extraRooms]);
@@ -127,8 +143,6 @@ export default function Home() {
         .eq('reference_id', refId);
 
       if (updateError) throw updateError;
-
-      // TRIGGER CUSTOM MODAL INSTEAD OF ALERT
       setShowSuccessModal(true);
       
     } catch (err: any) {
@@ -191,7 +205,7 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen font-sans text-slate-900">
+    <main className="min-h-screen font-sans text-slate-900 scroll-smooth">
       {/* Navigation */}
       <nav className="fixed top-0 w-full bg-white/60 backdrop-blur-xl z-50 border-b border-slate-100 shadow-sm">
         <div className="max-w-6xl mx-auto px-6 py-4 flex justify-between items-center">
@@ -235,7 +249,7 @@ export default function Home() {
       </section>
 
       {/* Amenities Section */}
-      <section id="amenities" className="bg-slate-950 py-24 px-6 rounded-[4rem] mx-4 md:mx-10 my-10 relative overflow-hidden">
+      <section id="amenities" className="bg-slate-950 py-24 px-6 rounded-[4rem] mx-4 md:mx-10 my-10 relative overflow-hidden scroll-mt-24">
         <div className="absolute top-0 left-1/4 w-96 h-96 bg-blue-600/10 blur-[120px] rounded-full"></div>
         <div className="max-w-6xl mx-auto relative z-10">
           <div className="flex flex-col md:flex-row justify-between items-end mb-16 gap-6">
@@ -269,6 +283,76 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Pricing Section */}
+      <section id="rates" className="max-w-6xl mx-auto px-6 py-24 scroll-mt-24">
+        <div className="bg-slate-950 rounded-[3rem] p-10 shadow-2xl border border-white/5 w-full text-white">
+          <h2 className="text-3xl font-black uppercase italic mb-8">
+            Our <span className="text-blue-400">Pricing</span>
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="bg-slate-900 p-6 rounded-[2rem] border border-white/5 hover:border-blue-500/30 transition-all">
+              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Sun-Kissed Day</p>
+              <p className="text-3xl font-black text-white italic">₱7,000</p>
+              <p className="text-[9px] font-bold text-slate-400 mt-2 italic uppercase">8:00 AM - 5:00 PM</p>
+            </div>
+            <div className="bg-slate-900 p-6 rounded-[2rem] border border-white/5 hover:border-blue-500/30 transition-all">
+              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Starry Night</p>
+              <p className="text-3xl font-black text-white italic">₱8,000</p>
+              <p className="text-[9px] font-bold text-slate-400 mt-2 italic uppercase">7:00 PM - 6:00 AM</p>
+            </div>
+            <div className="bg-blue-600 p-6 rounded-[2rem] shadow-xl shadow-blue-900/20 text-white hover:scale-105 transition-all">
+              <p className="text-[10px] font-black text-blue-200 uppercase tracking-widest mb-2">Full Stay</p>
+              <p className="text-3xl font-black italic">₱13,000</p>
+              <p className="text-[9px] font-bold text-blue-100 mt-2 italic uppercase">Ultimate Experience</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Visit Us Section */}
+      <section id="location" className="max-w-6xl mx-auto px-6 py-24 scroll-mt-24">
+        <div className="bg-slate-950 rounded-[4rem] p-12 shadow-2xl text-white w-full border border-white/5 relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-blue-600/5 blur-[100px] rounded-full"></div>
+          
+          <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-10">
+            <div className="text-center md:text-left">
+              <h2 className="text-4xl font-black uppercase italic mb-4">Visit <span className="text-blue-400">Us</span></h2>
+              <a 
+                href="http://maps.google.com/?q=R&V+Private+Pool+Pandi+Bulacan" 
+                target="_blank" 
+                className="group flex items-center gap-3 text-slate-400 hover:text-white transition-all cursor-pointer"
+              >
+                <p className="font-bold text-sm uppercase leading-relaxed">
+                  #0411 BES, Sto. Rosario St. Bagong Barrio, <br />
+                  Pandi, Bulacan, Philippines, 3014
+                </p>
+                <span className="text-2xl group-hover:translate-x-2 transition-transform">📍</span>
+              </a>
+            </div>
+
+            <div className="flex flex-wrap justify-center gap-4">
+              <div className="bg-slate-900/80 backdrop-blur-sm p-6 rounded-3xl border border-white/5 w-48 text-center">
+                <p className="text-[9px] font-black text-slate-500 uppercase mb-2 tracking-widest">Direct Contact</p>
+                <p className="text-lg font-black text-blue-400">0938 611 2459</p>
+              </div>
+              
+              <a 
+                href="https://www.facebook.com/profile.php?id=61550826866114" 
+                target="_blank"
+                className="bg-blue-600 hover:bg-blue-500 transition-all p-6 rounded-3xl w-48 text-center group shadow-xl shadow-blue-900/20"
+              >
+                <p className="text-[9px] font-black text-blue-200 uppercase mb-2 tracking-widest">Facebook Page</p>
+                <p className="text-lg font-black group-hover:scale-105 transition-transform">R&V Private Pool ↗</p>
+              </a>
+            </div>
+          </div>
+          
+          <div className="mt-12 pt-8 border-t border-white/5 text-center relative z-10">
+            <p className="text-[10px] font-black text-slate-600 uppercase tracking-[0.5em]">© 2026 R&V Private Pool Management</p>
+          </div>
+        </div>
+      </section>
+
       {/* Booking Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -282,15 +366,16 @@ export default function Home() {
                   <div className="w-16 h-16 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-4">
                     <span className="text-2xl">✅</span>
                   </div>
-                  <h4 className="text-2xl font-black uppercase italic text-slate-900">Booking Saved!</h4>
+                  <h4 className="text-2xl font-black uppercase italic text-slate-900">Booking Saved! Make Sure to Copy Your Reference ID.</h4>
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Ref ID: {bookingRef}</p>
                 </div>
 
                 <div className="bg-blue-600 p-6 rounded-[3rem] text-white shadow-xl">
                   <p className="text-[9px] font-black uppercase tracking-[0.2em] mb-4 opacity-80">Scan to Pay via GCash</p>
-                  <img src="/gcash-qr.jpg" className="w-40 h-40 mx-auto rounded-2xl border-4 border-white/20 mb-4 object-cover" alt="GCash QR" />
-                  <p className="font-black text-lg leading-none uppercase">Rassid Serohijos</p>
-                  <p className="text-[10px] font-bold opacity-70">0938 611 2459</p>
+                  {/* --- INTEGRATED QR LOGIC HERE --- */}
+                  <img src={getQRImage()} className="w-40 h-40 mx-auto rounded-2xl border-4 border-white/20 mb-4 object-cover" alt="GCash QR" />
+                  <p className="font-black text-lg leading-none uppercase">Joshua Ubaldo</p>
+                  <p className="text-[10px] font-bold opacity-70">0945 368 3121</p>
                 </div>
 
                 <div className="space-y-4 text-left">
@@ -427,9 +512,7 @@ export default function Home() {
       {showSuccessModal && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-6 animate-in fade-in duration-300">
           <div className="bg-white p-10 rounded-[3.5rem] shadow-2xl max-w-sm w-full text-center scale-in-center animate-in zoom-in duration-300">
-            <div className="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-6 text-4xl shadow-inner">
-              ✓
-            </div>
+            <div className="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-6 text-4xl shadow-inner">✓</div>
             <h2 className="text-3xl font-black uppercase italic tracking-tighter text-slate-900 mb-3">Success!</h2>
             <p className="text-slate-500 font-bold text-[11px] uppercase tracking-widest leading-relaxed mb-8">
               Payment submitted! We will verify your booking shortly.
